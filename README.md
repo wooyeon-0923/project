@@ -1,4 +1,4 @@
-#include <SoftwareSerial.h>
+[[[[#include <SoftwareSerial.h>
 
 // Grove Base Shield의 D2, D3 포트를 사용
 SoftwareSerial mySerial(2, 3); // RX, TX
@@ -27,3 +27,4 @@ void loop() {
 
     delay(1000); // 1초 간격
 }
+](https://docs.google.com/presentation/d/1pyIsjvTLsRYAT1k4PAtZAQIQBezVqqahGu_nZ46ccF4/edit#slide=id.g31b05e4f5e1_0_55)](https://docs.google.com/presentation/d/1pyIsjvTLsRYAT1k4PAtZAQIQBezVqqahGu_nZ46ccF4/edit#slide=id.g31b05e4f5e1_0_55)](https://docs.google.com/presentation/d/1pyIsjvTLsRYAT1k4PAtZAQIQBezVqqahGu_nZ46ccF4/edit#slide=id.g31b05e4f5e1_0_55)](https://docs.google.com/presentation/d/1pyIsjvTLsRYAT1k4PAtZAQIQBezVqqahGu_nZ46ccF4/edit#slide=id.g31b05e4f5e1_0_55)
