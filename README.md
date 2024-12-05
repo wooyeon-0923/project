@@ -1,11 +1,17 @@
 # project
 
 int pin = 8;
+
 unsigned long duration;
+
 unsigned long starttime;
+
 unsigned long sampletime_ms = 30000;  // 30초 동안 샘플링
+
 unsigned long lowpulseoccupancy = 0;
+
 float ratio = 0;
+
 float concentration = 0;
 
 void setup()
