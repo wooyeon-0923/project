@@ -1,66 +1,25 @@
-# project
+'''
+#include <SoftwareSerial.h>
 
-int pin = 8;
+// CM1106 센서용 직렬 통신 핀 설정
+SoftwareSerial mySerial(2, 3); // RX, TX (CM1106과 연결)
 
-unsigned long duration;
+// CM1106 데이터 저장 변수
+byte receivedData[9]; // CM1106 데이터는 9바이트 길이
+int co2_concentration = 0;
 
-unsigned long starttime;
+// CM1106 데이터 읽기 함수
+void readCM1106() {
+    if (mySerial.available() >= 9) { // 데이터 길이 확인
+        mySerial.readBytes(receivedData, 9);
 
-unsigned long sampletime_ms = 30000;  // 30초 동안 샘플링
-
-unsigned long lowpulseoccupancy = 0;
-
-float ratio = 0;
-
-float concentration = 0;
-
-void setup()
-{
-    Serial.begin(9600);
-    pinMode(pin, INPUT);
-    starttime = millis();
-    Serial.println("미세먼지 측정을 시작합니다...");
-    Serial.println("==============================");
-}
-
-void loop()
-{
-    duration = pulseIn(pin, LOW);
-    lowpulseoccupancy = lowpulseoccupancy + duration;
-
-    if ((millis()-starttime) > sampletime_ms)  // 30초마다 측정
-    {
-        ratio = lowpulseoccupancy/(sampletime_ms*10.0);
-        concentration = 1.1*pow(ratio,3)-3.8*pow(ratio,2)+520*ratio+0.62; // ug/m3 단위
-
-        Serial.println("==============================");
-        Serial.print("미세먼지 농도: ");
-        Serial.print(concentration);
-        Serial.println(" ug/m3");
-
-        // 대기질 상태 표시
-        Serial.print("대기질 상태: ");
-        if(concentration <= 30) {
-            Serial.println("좋음");
+        // 데이터 유효성 검사 (헤더 및 체크섬 확인)
+        if (receivedData[0] == 0xFF && receivedData[1] == 0x86) {
+            co2_concentration = (receivedData[2] << 8) | receivedData[3]; // CO2 농도 계산
+        } else {
+            co2_concentration = -1; // 데이터 오류 시 -1 반환
         }
-        else if(concentration <= 80) {
-            Serial.println("보통");
-        }
-        else if(concentration <= 150) {
-            Serial.println("나쁨");
-        }
-        else {
-            Serial.println("매우 나쁨");
-        }
-
-        Serial.println("------------------------------");
-        Serial.print("측정 시간: ");
-        Serial.print(millis()/1000);
-        Serial.println("초");
-        Serial.println("==============================\n");
-
-        // 다음 측정을 위한 초기화
-        lowpulseoccupancy = 0;
-        starttime = millis();
     }
 }
+
+'''
