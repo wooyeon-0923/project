@@ -8,7 +8,7 @@ Arduino의 데이터를 CSV 파일로 저장하려면 아래 방법을 사용할
 int pin = 8;
 unsigned long duration;
 unsigned long starttime;
-unsigned long sampletime_ms = 30000;  // 30초 동안 샘플링
+unsigned long sampletime_ms = 30000;  // Sampling for 30 seconds
 unsigned long lowpulseoccupancy = 0;
 float ratio = 0;
 float concentration = 0;
@@ -18,7 +18,8 @@ void setup()
     Serial.begin(9600);
     pinMode(pin, INPUT);
     starttime = millis();
-    Serial.println("time,concentration,air_quality"); // CSV 헤더 추가
+    Serial.println("Starting dust measurement...");
+    Serial.println("==============================");
 }
 
 void loop()
@@ -26,36 +27,40 @@ void loop()
     duration = pulseIn(pin, LOW);
     lowpulseoccupancy = lowpulseoccupancy + duration;
 
-    if ((millis() - starttime) > sampletime_ms)  // 30초마다 측정
+    if ((millis() - starttime) > sampletime_ms)  // Measure every 30 seconds
     {
         ratio = lowpulseoccupancy / (sampletime_ms * 10.0);
-        concentration = 1.1 * pow(ratio, 3) - 3.8 * pow(ratio, 2) + 520 * ratio + 0.62; // ug/m3 단위
+        concentration = 1.1 * pow(ratio, 3) - 3.8 * pow(ratio, 2) + 520 * ratio + 0.62; // Unit: ug/m3
 
-        // 대기질 상태 결정
-        String air_quality;
+        Serial.println("==============================");
+        Serial.print("Dust concentration: ");
+        Serial.print(concentration);
+        Serial.println(" ug/m3");
+
+        // Determine air quality
+        Serial.print("Air quality: ");
         if (concentration <= 30) {
-            air_quality = "Good";
+            Serial.println("Good");
         } else if (concentration <= 80) {
-            air_quality = "Moderate";
+            Serial.println("Moderate");
         } else if (concentration <= 150) {
-            air_quality = "Unhealthy";
+            Serial.println("Unhealthy");
         } else {
-            air_quality = "Very Unhealthy";
+            Serial.println("Very Unhealthy");
         }
 
-        // 데이터 출력 (CSV 형식)
-        Serial.print(millis() / 1000); // 시간(초)
-        Serial.print(",");
-        Serial.print(concentration); // 농도
-        Serial.print(",");
-        Serial.println(air_quality); // 대기질 상태
+        Serial.println("------------------------------");
+        Serial.print("Measurement time: ");
+        Serial.print(millis() / 1000);
+        Serial.println(" seconds");
+        Serial.println("==============================\n");
 
-        // 다음 측정을 위한 초기화
+        // Reset for the next measurement
         lowpulseoccupancy = 0;
         starttime = millis();
     }
 }
-```
+
 
 ---
 
