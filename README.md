@@ -1,157 +1,134 @@
-아래는 각각의 센서 데이터를 **별도로 측정**하고, **CSV 파일로 저장**하는 방법입니다. 두 개의 Python 스크립트를 사용해 각 센서의 데이터를 독립적으로 관리하면서 측정 시간을 5초로 통일합니다.
+CM1106 (CO2 센서)와 Grove Dust Sensor 데이터를 측정한 뒤, CSV 파일로 저장할 수 있도록 코드를 수정했습니다. Arduino는 자체적으로 CSV 파일을 저장할 수 없으므로 데이터를 시리얼 통신을 통해 PC로 전송하고, Python을 사용해 저장합니다.
 
 ---
 
-### **1. Dust Sensor Arduino 코드**
-
-Dust 센서 데이터를 5초마다 출력하며, CSV 포맷으로 출력합니다.
-
-```cpp
-int pin = 8;
-unsigned long duration;
-unsigned long starttime;
-unsigned long sampletime_ms = 5000;  // Sampling for 5 seconds
-unsigned long lowpulseoccupancy = 0;
-float ratio = 0;
-float concentration = 0;
-
-void setup() {
-    Serial.begin(9600);
-    pinMode(pin, INPUT);
-    starttime = millis();
-    Serial.println("time,dust_concentration,air_quality"); // CSV Header
-}
-
-void loop() {
-    duration = pulseIn(pin, LOW);
-    lowpulseoccupancy = lowpulseoccupancy + duration;
-
-    if ((millis() - starttime) > sampletime_ms) {  // Measure every 5 seconds
-        ratio = lowpulseoccupancy / (sampletime_ms * 10.0);
-        concentration = 1.1 * pow(ratio, 3) - 3.8 * pow(ratio, 2) + 520 * ratio + 0.62; // Unit: ug/m3
-
-        // Determine air quality
-        String airQuality;
-        if (concentration <= 30) {
-            airQuality = "Good";
-        } else if (concentration <= 80) {
-            airQuality = "Moderate";
-        } else if (concentration <= 150) {
-            airQuality = "Unhealthy";
-        } else {
-            airQuality = "Very Unhealthy";
-        }
-
-        // Print CSV-formatted data
-        Serial.print(millis() / 1000); // Time in seconds
-        Serial.print(",");
-        Serial.print(concentration); // Dust concentration
-        Serial.print(",");
-        Serial.println(airQuality); // Air quality
-
-        // Reset for next measurement
-        lowpulseoccupancy = 0;
-        starttime = millis();
-    }
-}
-```
-
----
-
-### **2. CM1106 Arduino 코드**
-
-CM1106 데이터를 5초마다 출력하며, CSV 포맷으로 출력합니다.
+### **수정된 Arduino 코드 (CSV 형식 출력)**
 
 ```cpp
 #include <cm1106_i2c.h>
 
 CM1106_I2C cm1106_i2c;
 
-void setup() {
-    cm1106_i2c.begin();
-    Serial.begin(9600);
-    delay(1000);
-    cm1106_i2c.read_serial_number();
-    delay(1000);
-    cm1106_i2c.check_sw_version();
-    delay(1000);
+// Dust Sensor Configuration
+int dustPin = 8;
+unsigned long duration;
+unsigned long starttime;
+unsigned long sampletime_ms = 5000;  // Sampling for 5 seconds
+unsigned long lowpulseoccupancy = 0;
+float ratio = 0;
+float dustConcentration = 0;
 
-    Serial.println("time,co2_concentration"); // CSV Header
+void setup() {
+  // Initialize CM1106
+  cm1106_i2c.begin();
+  Serial.begin(9600);
+
+  delay(1000);
+  cm1106_i2c.read_serial_number();
+  delay(1000);
+  cm1106_i2c.check_sw_version();
+  delay(1000);
+
+  // Initialize Dust Sensor
+  pinMode(dustPin, INPUT);
+  starttime = millis();
+
+  Serial.println("time,co2,dust_concentration,air_quality"); // CSV Header
 }
 
 void loop() {
-    uint8_t ret = cm1106_i2c.measure_result();
-    if (ret == 0) {
-        // Print CSV-formatted data
-        Serial.print(millis() / 1000); // Time in seconds
-        Serial.print(",");
-        Serial.println(cm1106_i2c.co2); // CO2 concentration
+  // CO2 Measurement
+  int co2Concentration = -1;  // Default value if CO2 measurement fails
+  uint8_t ret = cm1106_i2c.measure_result();
+  if (ret == 0) {
+    co2Concentration = cm1106_i2c.co2;
+  }
+
+  // Dust Measurement
+  duration = pulseIn(dustPin, LOW);
+  lowpulseoccupancy += duration;
+
+  if ((millis() - starttime) > sampletime_ms) {
+    ratio = lowpulseoccupancy / (sampletime_ms * 10.0);
+    dustConcentration = 1.1 * pow(ratio, 3) - 3.8 * pow(ratio, 2) + 520 * ratio + 0.62; // Unit: ug/m3
+
+    // Determine air quality
+    String airQuality;
+    if (dustConcentration <= 30) {
+      airQuality = "Good";
+    } else if (dustConcentration <= 80) {
+      airQuality = "Moderate";
+    } else if (dustConcentration <= 150) {
+      airQuality = "Unhealthy";
+    } else {
+      airQuality = "Very Unhealthy";
     }
-    delay(5000); // Wait 5 seconds for the next measurement
+
+    // Print CSV-formatted data
+    Serial.print(millis() / 1000); // Time in seconds
+    Serial.print(",");
+    Serial.print(co2Concentration); // CO2 Concentration
+    Serial.print(",");
+    Serial.print(dustConcentration); // Dust Concentration
+    Serial.print(",");
+    Serial.println(airQuality); // Air Quality
+
+    // Reset variables for next measurement
+    lowpulseoccupancy = 0;
+    starttime = millis();
+  }
+
+  // Delay to ensure 5-second interval
+  delay(5000 - (millis() - starttime));
 }
 ```
 
 ---
 
-### **3. Python 스크립트로 CSV 저장**
+### **Python 코드로 CSV 저장**
 
-#### **Dust Sensor Python 코드**
+아래 Python 스크립트는 Arduino에서 시리얼로 출력된 데이터를 읽어와 CSV 파일로 저장합니다.
+
+#### **Python 코드**
 ```python
 import serial
 import csv
 
-SERIAL_PORT = 'COM3'  # Replace with your Arduino port
+# Arduino 시리얼 포트 설정
+SERIAL_PORT = 'COM3'  # Replace with your Arduino port (e.g., '/dev/ttyUSB0' or 'COM3')
 BAUD_RATE = 9600
-CSV_FILE = "dust_sensor_data.csv"
+CSV_FILE = "sensor_data.csv"
+
+# CSV 파일 초기화
+def initialize_csv(file_path):
+    with open(file_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Time (s)", "CO2 (ppm)", "Dust Concentration (ug/m3)", "Air Quality"])  # Header
+
+# CSV 파일에 데이터 추가
+def append_to_csv(file_path, data):
+    with open(file_path, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(data)
 
 def main():
-    with open(CSV_FILE, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Time (s)", "Dust Concentration (ug/m3)", "Air Quality"])  # CSV Header
-
-        try:
-            with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
-                print("Receiving data from Dust Sensor...")
-                while True:
-                    line = ser.readline().decode('utf-8').strip()
-                    if line and "," in line:
-                        print(f"Received: {line}")
-                        writer.writerow(line.split(","))
-        except serial.SerialException as e:
-            print(f"Serial error: {e}")
-        except KeyboardInterrupt:
-            print("Data collection stopped.")
-
-if __name__ == "__main__":
-    main()
-```
-
-#### **CM1106 Python 코드**
-```python
-import serial
-import csv
-
-SERIAL_PORT = 'COM4'  # Replace with your Arduino port
-BAUD_RATE = 9600
-CSV_FILE = "cm1106_data.csv"
-
-def main():
-    with open(CSV_FILE, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Time (s)", "CO2 Concentration (ppm)"])  # CSV Header
-
-        try:
-            with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
-                print("Receiving data from CM1106 Sensor...")
-                while True:
-                    line = ser.readline().decode('utf-8').strip()
-                    if line and "," in line:
-                        print(f"Received: {line}")
-                        writer.writerow(line.split(","))
-        except serial.SerialException as e:
-            print(f"Serial error: {e}")
-        except KeyboardInterrupt:
-            print("Data collection stopped.")
+    initialize_csv(CSV_FILE)
+    try:
+        # 시리얼 포트 연결
+        with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
+            print("Receiving data from Arduino...")
+            while True:
+                # 시리얼 데이터 읽기
+                line = ser.readline().decode('utf-8').strip()
+                if line and "," in line:  # CSV 형식인지 확인
+                    print(f"Received: {line}")
+                    data = line.split(",")  # Split data by comma
+                    if len(data) == 4:  # Ensure there are 4 columns (Time, CO2, Dust, Air Quality)
+                        append_to_csv(CSV_FILE, data)
+    except serial.SerialException as e:
+        print(f"Serial error: {e}")
+    except KeyboardInterrupt:
+        print("Data collection stopped.")
 
 if __name__ == "__main__":
     main()
@@ -159,37 +136,22 @@ if __name__ == "__main__":
 
 ---
 
-### **4. 실행 방법**
-1. **Dust 센서**와 **CM1106**에 대해 각각의 Python 스크립트를 실행합니다.
-2. 두 센서를 Arduino 보드에 연결하고, 각각 다른 포트(COM 포트)를 사용하여 데이터를 출력합니다.
-3. 각각의 Python 파일을 별도로 실행하여 두 센서의 데이터를 개별적으로 저장합니다.
+### **CSV 출력 예시**
 
----
-
-### **CSV 파일 예시**
-#### **dust_sensor_data.csv**
+`sensor_data.csv` 파일:
 ```csv
-Time (s),Dust Concentration (ug/m3),Air Quality
-5,25.3,Good
-10,50.2,Moderate
-15,120.1,Unhealthy
-20,170.5,Very Unhealthy
-```
-
-#### **cm1106_data.csv**
-```csv
-Time (s),CO2 Concentration (ppm)
-5,400
-10,405
-15,410
-20,420
+Time (s),CO2 (ppm),Dust Concentration (ug/m3),Air Quality
+5,400,25.3,Good
+10,405,50.2,Moderate
+15,410,120.1,Unhealthy
+20,420,170.5,Very Unhealthy
 ```
 
 ---
 
-### **추가 사항**
-- **포트 충돌 방지**: Dust 센서와 CM1106 센서를 각각 다른 COM 포트에 연결해야 합니다.
-- **시리얼 모니터 종료**: Arduino IDE의 시리얼 모니터를 닫아야 Python 스크립트에서 포트를 열 수 있습니다.
-- **Python 병렬 실행**: 두 Python 스크립트를 각각의 터미널 창에서 실행합니다.
+### **주의 사항**
+1. **포트 확인**: `COM3` 또는 `/dev/ttyUSB0` 등 Arduino가 연결된 포트를 정확히 설정해야 합니다.
+2. **시리얼 모니터 닫기**: Arduino IDE의 시리얼 모니터가 열려 있으면 Python에서 포트를 열 수 없습니다.
+3. **I2C 주소 확인**: CM1106과 다른 I2C 장치의 주소가 충돌하지 않도록 확인하세요.
 
-궁금한 점이 있다면 언제든지 말씀해주세요! 😊
+추가 질문이 있거나 개선 사항이 필요하면 언제든지 말씀해주세요! 😊
