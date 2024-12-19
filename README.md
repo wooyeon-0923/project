@@ -1,4 +1,8 @@
-import serial
+imp
+
+https://github.com/user-attachments/assets/9d2f3420-e269-4865-802f-e580186fd79e
+
+ort serial
 import csv
 import pandas as pd
 from urllib.request import urlopen
